@@ -10,12 +10,10 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Context, Result};
-use ce_rs::serve::{serve, Handler, Request};
 use ce_rs::CeClient;
 
-use ce_blueprint::{generate, Plan, TargetDescriptor};
-
-const TOPIC: &str = "capability.blueprint/plan";
+// The generator + the mesh capability both live in the lib so tests/other ceapps drive the real code.
+use ce_blueprint::{generate, serve_capability, TargetDescriptor, CAPABILITY_TOPIC};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -89,34 +87,12 @@ fn descriptors_dir() -> PathBuf {
 
 // ---- mesh capability ----
 
-struct Blueprint;
-
-impl Handler for Blueprint {
-    async fn handle(&self, req: Request) -> Vec<u8> {
-        // Payload is a descriptor JSON; reply is a plan JSON (or a JSON error object — never a panic).
-        match serde_json::from_slice::<TargetDescriptor>(&req.payload) {
-            Ok(d) => serde_json::to_vec(&generate(&d)).unwrap_or_else(|e| err_json(&e.to_string())),
-            Err(e) => err_json(&format!("invalid descriptor: {e}")),
-        }
-    }
-}
-
-fn err_json(msg: &str) -> Vec<u8> {
-    serde_json::to_vec(&serde_json::json!({ "error": msg })).unwrap_or_default()
-}
-
 async fn run_serve(ce: CeClient) -> Result<()> {
     let id = ce.status().await.map(|s| s.node_id).unwrap_or_default();
     let short = id.get(..16).unwrap_or(&id);
-    println!("ce-blueprint providing `{TOPIC}` on node {short}… — send a descriptor, get a plan");
-    serve(&ce, &[TOPIC], &Blueprint, async {
+    println!("ce-blueprint providing `{CAPABILITY_TOPIC}` on node {short}… — send a descriptor, get a plan");
+    serve_capability(&ce, async {
         let _ = tokio::signal::ctrl_c().await;
     })
     .await
-}
-
-// A tiny compile-time reminder that the CLI and the capability share one generator.
-#[allow(dead_code)]
-fn _same_generator(d: &TargetDescriptor) -> Plan {
-    generate(d)
 }

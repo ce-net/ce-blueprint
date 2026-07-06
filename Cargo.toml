@@ -19,3 +19,8 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 anyhow = "1"
+
+[dev-dependencies]
+# The suite drives the real capability over a mesh node the harness spins up.
+ce-test = { git = "https://github.com/ce-net/ce-test" }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"] }

@@ -276,6 +276,33 @@ fn flash_transport(d: &TargetDescriptor) -> String {
     }
 }
 
+// ---- the mesh capability (so tests + other ceapps drive the real planner over the Bus) ----
+
+/// The mesh topic ce-blueprint answers: a `TargetDescriptor` JSON in, a `Plan` JSON out.
+pub const CAPABILITY_TOPIC: &str = "capability.blueprint/plan";
+
+/// The capability responder: parses a descriptor and returns its plan (or `{"error": …}`).
+pub struct BlueprintService;
+
+impl ce_rs::serve::Handler for BlueprintService {
+    async fn handle(&self, req: ce_rs::serve::Request) -> Vec<u8> {
+        match serde_json::from_slice::<TargetDescriptor>(&req.payload) {
+            Ok(d) => serde_json::to_vec(&generate(&d)).unwrap_or_default(),
+            Err(e) => serde_json::to_vec(&serde_json::json!({ "error": format!("invalid descriptor: {e}") }))
+                .unwrap_or_default(),
+        }
+    }
+}
+
+/// Serve `capability.blueprint/plan` on `ce` until `shutdown` resolves — exactly what `ce-blueprint
+/// serve` runs. Call it from a test to stand up the real capability on a harness node.
+pub async fn serve_capability<F>(ce: &ce_rs::CeClient, shutdown: F) -> anyhow::Result<()>
+where
+    F: std::future::Future<Output = ()>,
+{
+    ce_rs::serve::serve(ce, &[CAPABILITY_TOPIC], &BlueprintService, shutdown).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
