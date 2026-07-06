@@ -1,0 +1,12 @@
+{
+  "name": "i2c-temp-sensor-d0",
+  "arch": "none",
+  "has_os": false,
+  "ram_kb": 2,
+  "flash_kb": 8,
+  "has_crypto": false,
+  "wasm_capable": false,
+  "signed_ota": false,
+  "buses": ["i2c"],
+  "connectivity": []
+}

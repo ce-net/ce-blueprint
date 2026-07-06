@@ -1,0 +1,12 @@
+{
+  "name": "arduino-uno-q",
+  "arch": "aarch64-unknown-linux-gnu",
+  "has_os": true,
+  "ram_kb": 2097152,
+  "flash_kb": 16777216,
+  "has_crypto": true,
+  "wasm_capable": true,
+  "signed_ota": false,
+  "buses": ["gpio", "i2c", "spi", "uart"],
+  "connectivity": ["wifi", "ble", "usb"]
+}

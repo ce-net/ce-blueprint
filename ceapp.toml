@@ -1,0 +1,14 @@
+# ce-blueprint — the CE portability blueprint generator, as a ceapp.
+# Provides the `capability.blueprint` capability: descriptor in, plan out, over the mesh.
+name = "ce-blueprint"
+version = "0.1.0"
+description = "Turn a target descriptor (chip = data) into the constraint-correct CE plan: tier, runtime, host-ABI groups, isolation, artifact, delivery."
+runtime = "native"
+
+[bin]
+name = "ce-blueprint"
+
+# `serve` provides the capability over the mesh; install it and any node can plan any target.
+[daemon]
+enabled = true
+args = ["serve"]

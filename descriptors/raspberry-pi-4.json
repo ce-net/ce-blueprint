@@ -1,0 +1,12 @@
+{
+  "name": "raspberry-pi-4",
+  "arch": "aarch64-unknown-linux-gnu",
+  "has_os": true,
+  "ram_kb": 4194304,
+  "flash_kb": 33554432,
+  "has_crypto": true,
+  "wasm_capable": true,
+  "signed_ota": false,
+  "buses": ["gpio", "i2c", "spi", "uart"],
+  "connectivity": ["ethernet", "wifi", "ble"]
+}

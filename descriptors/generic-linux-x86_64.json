@@ -1,0 +1,12 @@
+{
+  "name": "generic-linux-x86_64",
+  "arch": "x86_64-unknown-linux-gnu",
+  "has_os": true,
+  "ram_kb": 8388608,
+  "flash_kb": 268435456,
+  "has_crypto": true,
+  "wasm_capable": true,
+  "signed_ota": false,
+  "buses": [],
+  "connectivity": ["ethernet", "wifi"]
+}

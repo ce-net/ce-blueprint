@@ -1,0 +1,12 @@
+{
+  "name": "esp32-c3",
+  "arch": "riscv32imc-unknown-none-elf",
+  "has_os": false,
+  "ram_kb": 400,
+  "flash_kb": 4096,
+  "has_crypto": true,
+  "wasm_capable": true,
+  "signed_ota": false,
+  "buses": ["gpio", "i2c", "spi", "uart"],
+  "connectivity": ["wifi", "ble"]
+}

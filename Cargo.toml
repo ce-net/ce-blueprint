@@ -1,0 +1,24 @@
+[package]
+name = "ce-blueprint"
+version = "0.1.0"
+edition = "2021"
+description = "The CE portability blueprint generator: a ceapp that turns a target descriptor (chip = data) into the exact constraint-correct plan (tier, runtime backend, host-ABI groups, isolation, artifact, delivery) for running CE on it. Implements docs/portability.md — chips are data, not code."
+license = "AGPL-3.0-only"
+
+[lib]
+name = "ce_blueprint"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ce-blueprint"
+path = "src/main.rs"
+
+[dependencies]
+ce-rs = { git = "https://github.com/ce-net/ce-rs", features = ["serve"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+
+[dev-dependencies]
+ce-test = { git = "https://github.com/ce-net/ce-test" }

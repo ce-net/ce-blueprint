@@ -1,0 +1,12 @@
+{
+  "name": "esp32-s3",
+  "arch": "xtensa-esp32s3-none-elf",
+  "has_os": false,
+  "ram_kb": 512,
+  "flash_kb": 8192,
+  "has_crypto": true,
+  "wasm_capable": true,
+  "signed_ota": true,
+  "buses": ["gpio", "i2c", "spi", "uart", "adc"],
+  "connectivity": ["wifi", "ble"]
+}
