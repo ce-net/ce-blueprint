@@ -103,7 +103,7 @@ pub enum Artifact {
     None,
 }
 
-/// How the artifact reaches the target for the first hop (`PLAN/ce-onboard-design.md`).
+/// How the artifact reaches the target for the first hop (the ce-onboard repo).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum Delivery {
