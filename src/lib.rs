@@ -17,6 +17,8 @@
 
 use serde::{Deserialize, Serialize};
 
+pub mod apps;
+
 /// A target described as data. This — not a match on the chip's name — is what places it in CE. Every
 /// field is a capability the target either has or lacks; the generator reads *capabilities*, never a
 /// model number. Unknown numeric fields default to 0 (treated as "unknown", flagged in the plan).
@@ -278,14 +280,24 @@ fn flash_transport(d: &TargetDescriptor) -> String {
 
 // ---- the mesh capability (so tests + other ceapps drive the real planner over the Bus) ----
 
-/// The mesh topic ce-blueprint answers: a `TargetDescriptor` JSON in, a `Plan` JSON out.
+/// The mesh topic ce-blueprint answers for planning: a `TargetDescriptor` JSON in, a `Plan` JSON out.
 pub const CAPABILITY_TOPIC: &str = "capability.blueprint/plan";
 
-/// The capability responder: parses a descriptor and returns its plan (or `{"error": …}`).
+/// The capability responder. Serves two topics: [`CAPABILITY_TOPIC`] (descriptor → [`Plan`]) and
+/// [`apps::APPS_TOPIC`] (descriptor + desired capabilities → [`apps::Selection`]). Both answer with a
+/// `{"error": …}` JSON object on a malformed request rather than crashing or timing out.
 pub struct BlueprintService;
 
 impl ce_rs::serve::Handler for BlueprintService {
     async fn handle(&self, req: ce_rs::serve::Request) -> Vec<u8> {
+        if req.topic == apps::APPS_TOPIC {
+            return match serde_json::from_slice::<apps::AppsRequest>(&req.payload) {
+                Ok(r) => serde_json::to_vec(&apps::resolve(&r, &apps::Catalog::builtin())).unwrap_or_default(),
+                Err(e) => serde_json::to_vec(&serde_json::json!({ "error": format!("invalid apps request: {e}") }))
+                    .unwrap_or_default(),
+            };
+        }
+        // Default: the plan topic.
         match serde_json::from_slice::<TargetDescriptor>(&req.payload) {
             Ok(d) => serde_json::to_vec(&generate(&d)).unwrap_or_default(),
             Err(e) => serde_json::to_vec(&serde_json::json!({ "error": format!("invalid descriptor: {e}") }))
@@ -294,13 +306,14 @@ impl ce_rs::serve::Handler for BlueprintService {
     }
 }
 
-/// Serve `capability.blueprint/plan` on `ce` until `shutdown` resolves — exactly what `ce-blueprint
-/// serve` runs. Call it from a test to stand up the real capability on a harness node.
+/// Serve both blueprint capabilities on `ce` until `shutdown` resolves — exactly what `ce-blueprint
+/// serve` runs. Installing it teaches the mesh to plan any target AND select the app-set for any
+/// target. Call it from a test to stand up the real capabilities on a harness node.
 pub async fn serve_capability<F>(ce: &ce_rs::CeClient, shutdown: F) -> anyhow::Result<()>
 where
     F: std::future::Future<Output = ()>,
 {
-    ce_rs::serve::serve(ce, &[CAPABILITY_TOPIC], &BlueprintService, shutdown).await
+    ce_rs::serve::serve(ce, &[CAPABILITY_TOPIC, apps::APPS_TOPIC], &BlueprintService, shutdown).await
 }
 
 #[cfg(test)]

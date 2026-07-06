@@ -37,6 +37,20 @@ async fn plans_a_target_over_the_mesh() {
     assert_eq!(plan.tier, ce_blueprint::Tier::D4, "512 KiB + signed OTA → D4");
     assert_eq!(plan.runtime, vec!["wasmi".to_string()]);
 
+    // The SAME provider answers the app-selection capability: descriptor + desired capabilities in,
+    // the concrete app-set for that board out. The ESP32 gets the wasm climate build, and its lack
+    // of camera/inference variants comes back as unresolved (surfaced, not dropped).
+    let apps_req = br#"{"descriptor":{"name":"esp32-s3","arch":"xtensa-esp32s3-none-elf","has_crypto":true,"wasm_capable":true,"signed_ota":true,"ram_kb":512,"flash_kb":8192,"buses":["i2c"],"connectivity":["wifi"]},"desired":["sensor.climate","inference"]}"#;
+    let apps_reply = node
+        .request(&node.node_id, ce_blueprint::apps::APPS_TOPIC, apps_req, 10_000)
+        .await
+        .expect("select apps over the mesh");
+    let sel: ce_blueprint::apps::Selection =
+        serde_json::from_slice(&apps_reply).expect("reply is a Selection");
+    assert_eq!(sel.placements[0].app, "ce-sensor-climate");
+    assert_eq!(sel.placements[0].runtime, "wasm");
+    assert!(sel.unresolved.iter().any(|u| u.capability == "inference"), "inference is Hosted-only");
+
     // A malformed descriptor gets a JSON error, not a crash.
     let err = node
         .request(&node.node_id, ce_blueprint::CAPABILITY_TOPIC, b"not json", 10_000)

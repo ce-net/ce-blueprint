@@ -1,0 +1,9 @@
+{
+  "capability": "sensor.climate",
+  "abilities": ["building:climate:read"],
+  "variants": [
+    { "tiers": ["Hosted"], "app": "ce-sensor-climate", "runtime": "script" },
+    { "tiers": ["D4", "D2"], "app": "ce-sensor-climate", "runtime": "wasm" },
+    { "tiers": ["D0"], "app": "ce-arduino-bridge", "runtime": "adapter" }
+  ]
+}

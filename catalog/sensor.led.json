@@ -1,0 +1,9 @@
+{
+  "capability": "sensor.led",
+  "abilities": ["building:led:write"],
+  "variants": [
+    { "tiers": ["Hosted"], "app": "ce-sensor-led", "runtime": "script" },
+    { "tiers": ["D4", "D2"], "app": "ce-sensor-led", "runtime": "wasm" },
+    { "tiers": ["D0"], "app": "ce-arduino-bridge", "runtime": "adapter" }
+  ]
+}

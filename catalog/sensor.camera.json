@@ -1,0 +1,7 @@
+{
+  "capability": "sensor.camera",
+  "abilities": ["building:camera:read"],
+  "variants": [
+    { "tiers": ["Hosted"], "app": "ce-sensor-camera", "runtime": "script" }
+  ]
+}

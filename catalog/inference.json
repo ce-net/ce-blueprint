@@ -1,0 +1,7 @@
+{
+  "capability": "inference",
+  "abilities": ["exo:infer"],
+  "variants": [
+    { "tiers": ["Hosted"], "app": "ce-exo", "runtime": "native" }
+  ]
+}

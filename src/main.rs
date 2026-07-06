@@ -13,6 +13,7 @@ use anyhow::{anyhow, Context, Result};
 use ce_rs::CeClient;
 
 // The generator + the mesh capability both live in the lib so tests/other ceapps drive the real code.
+use ce_blueprint::apps::{select_apps, Catalog, Desired};
 use ce_blueprint::{generate, serve_capability, TargetDescriptor, CAPABILITY_TOPIC};
 
 #[tokio::main]
@@ -50,9 +51,23 @@ async fn main() -> Result<()> {
             }
             Ok(())
         }
+        Some("apps") => {
+            let src = args.get(2).ok_or_else(|| {
+                anyhow!("usage: ce-blueprint apps <descriptor.json | name | -> [capability ...]")
+            })?;
+            let json = read_descriptor(src)?;
+            let d: TargetDescriptor = serde_json::from_str(&json).context("parse descriptor JSON")?;
+            let desired: Vec<Desired> = args.iter().skip(3).map(|s| Desired::new(s.as_str())).collect();
+            let catalog = Catalog::load(&catalog_dir());
+            let selection = select_apps(&generate(&d), &desired, &catalog);
+            println!("{}", serde_json::to_string_pretty(&selection)?);
+            Ok(())
+        }
         Some("serve") => run_serve(CeClient::local()).await,
         _ => {
-            eprintln!("usage: ce-blueprint [plan <descriptor.json | name | -> | list | serve]");
+            eprintln!(
+                "usage: ce-blueprint [plan <descriptor.json | name | -> | apps <descriptor> [capability ...] | list | serve]"
+            );
             Ok(())
         }
     }
@@ -83,6 +98,15 @@ fn descriptors_dir() -> PathBuf {
         return PathBuf::from(d);
     }
     PathBuf::from("descriptors")
+}
+
+/// The bundled app catalog dir: `$CE_BLUEPRINT_CATALOG`, else `catalog/` next to the cwd.
+/// `Catalog::load` falls back to the embedded builtin catalog if it is absent.
+fn catalog_dir() -> PathBuf {
+    if let Some(d) = std::env::var_os("CE_BLUEPRINT_CATALOG") {
+        return PathBuf::from(d);
+    }
+    PathBuf::from("catalog")
 }
 
 // ---- mesh capability ----

@@ -33,7 +33,8 @@ ce-blueprint plan esp32-s3            # a bundled descriptor by name
 ce-blueprint plan ./my-board.json     # a descriptor file
 cat my-board.json | ce-blueprint plan -   # stdin
 ce-blueprint list                     # the bundled example targets + their tiers
-ce-blueprint serve                    # provide `capability.blueprint/plan` over the mesh
+ce-blueprint apps esp32-s3 sensor.climate inference   # which apps to install on this board
+ce-blueprint serve                    # provide the blueprint capabilities over the mesh
 ```
 
 Example — `ce-blueprint plan esp32-s3` yields (abridged):
@@ -51,25 +52,88 @@ Example — `ce-blueprint plan esp32-s3` yields (abridged):
 }
 ```
 
-## Over the mesh (the capability)
+## App selection — which apps to run on this board (`apps` / `capability.blueprint/apps`)
 
-`serve` answers `capability.blueprint/plan`: send a descriptor JSON, get a plan JSON back (or
-`{"error": "..."}`). Installing this app teaches the whole mesh to plan any target — the compounding
-model: `ce onboard` and other apps `locate` + call it instead of re-deriving the rules.
+`plan` answers *how CE runs on the chip*. `apps` answers the second half: *given the capabilities you
+want the mesh to have, which concrete ceapps go on THIS target* — and that differs by tier. You declare
+**intent** (logical capabilities like `sensor.climate`, `sensor.camera`, `inference`); the selector maps
+each to the right app for the target:
 
-```rust
-let plan_json = ce.request(provider, "capability.blueprint/plan", descriptor_json, 5_000).await?;
+- **Hosted** (Arduino UNO Q, RPi, a server) → `ce-sensor-climate`, the **script**-tier Python ceapp, copied onto the node.
+- **ESP32 (D2/D4)** → the **wasm** build of the same app, delivered as a content-addressed mesh module.
+- **A bare no-crypto sensor (D0)** → `ce-arduino-bridge`, an **adapter** running on the host node that holds the device.
+
+A capability with no variant for the tier (a 4K camera or a big model on a $3 chip) comes back
+**unresolved** with a reason — surfaced, never silently dropped. The mapping is **data** (`catalog/*.json`,
+one `CapabilityEntry` per capability); adding a sensor is adding a catalog file, extending an app to a new
+chip class is adding a variant — never editing code. Each placement carries the exact `ce-cap` abilities
+its app must be delegated, so an orchestrator grants least privilege by construction.
+
+```bash
+$ ce-blueprint apps arduino-uno-q sensor.climate inference
+{ "target": "arduino-uno-q", "tier": "Hosted",
+  "placements": [
+    { "capability": "sensor.climate", "app": "ce-sensor-climate", "runtime": "script",
+      "abilities": ["building:climate:read"], "install": "on-target", "notes": [] },
+    { "capability": "inference", "app": "ce-exo", "runtime": "native",
+      "abilities": ["exo:infer"], "install": "on-target", "notes": [] } ],
+  "unresolved": [] }
 ```
 
-## Adding a new chip
+## Over the mesh (the capabilities)
 
-Add a `descriptors/<name>.json` (or pass your own file). If it fits the existing capability axes, **no
-code changes** — that is the whole point. A genuinely new *rule* (a new capability axis) is a change to
-`generate()` here in the app, still never a substrate change. See `ce/docs/portability.md` §4 for the
-full porting playbooks (new runtime backend, new peripheral driver, tier promotion).
+`serve` answers two topics — installing this app teaches the whole mesh to both plan any target AND pick
+its app-set (the compounding model: `ce onboard`, a fleet orchestrator, and `ce-test`'s `h.arduino()`
+`locate` + call it instead of re-deriving the rules). Both reply `{"error": "..."}` on a bad request.
+
+```rust
+// descriptor JSON -> Plan JSON
+let plan = ce.request(provider, "capability.blueprint/plan", descriptor_json, 5_000).await?;
+// { descriptor, desired: [caps] } JSON -> Selection JSON
+let apps = ce.request(provider, "capability.blueprint/apps", apps_req_json, 5_000).await?;
+```
+
+## The board-aware orchestrator (why this + `ce-cap` `delegate` = trivial)
+
+These two capabilities are the foundation for **one orchestrator ceapp that installs an app-network on a
+fleet, correct-by-target and secure-by-construction** — the thing that used to be a research project is
+now gluing two library calls. Given the org cap the orchestrator holds:
+
+```rust
+// 1. Ask the board what it is, and which apps provide the capabilities we want on it.
+let plan = ce_blueprint::generate(&descriptor);                 // or over the mesh
+let sel  = ce_blueprint::apps::select_apps(&plan, &desired, &Catalog::builtin());
+
+// 2. For each app: install it on the target and hand it a cap ATTENUATED from ours —
+//    exactly the abilities it needs, scoped to that node, time-boxed. Nothing more.
+for p in &sel.placements {
+    let child_cap = ce_cap::delegate::delegate(&held_chain, &me, target, &Grant {
+        abilities: &p.abilities.iter().map(String::as_str).collect::<Vec<_>>(),
+        resource: Some(ce_cap::Resource::Node(target)),
+        ttl_secs: 86_400, nonce: next_nonce(),
+    }, now)?;
+    install_app(target, &p.app, &p.runtime, &child_cap).await?;  // appmgr / mesh deploy
+}
+```
+
+Run it against an Arduino UNO Q and it installs the script-tier sensors; run it against an ESP32 and it
+installs the wasm builds; ask for many nodes and it is a loop — no app code changes, and every spawned
+app is delegated strictly less authority than the orchestrator holds. `select_apps` lives here; the
+attenuating `delegate` primitive lives in the `ce-cap` crate (`github.com/ce-net/ce`).
+
+## Adding a new chip, or a new capability/app
+
+- **A chip** is a `descriptors/<name>.json`. Fits the existing axes ⇒ **no code changes**.
+- **A capability or an app variant** is a `catalog/<capability>.json` ([`CapabilityEntry`]): the abilities
+  an app needs + one `variant` per tier band (`{ tiers, app, runtime }`). Teaching the mesh that a sensor
+  now runs on a new chip class is adding a variant; adding a whole new sense is adding a file. Both are
+  **data** — never an edit to `generate()`/`select_apps()`. A genuinely new *rule* (a new capability axis)
+  is a change here in the app, still never a substrate change. See `ce/docs/portability.md` §4 for the
+  full porting playbooks.
 
 ## Tests
 
 ```bash
-cargo test -p ce-blueprint          # the generator: one test per tier (Hosted/D4/D2/D1/D0) + JSON round-trip
+cargo test -p ce-blueprint          # generator (one test per tier) + app-selection (per-board app-set) + round-trips
+cargo test -p ce-blueprint --test capability -- --ignored   # the two capabilities over a real mesh node
 ```
